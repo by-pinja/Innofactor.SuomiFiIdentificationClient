@@ -4,6 +4,7 @@ using Innofactor.SuomiFiIdentificationClient.Exceptions;
 using Innofactor.SuomiFiIdentificationClient.Support;
 using Innofactor.SuomiFiIdentificationClient.Test.TestSupport;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Xml;
 
 namespace Innofactor.SuomiFiIdentificationClient.Test {
 
@@ -62,6 +63,12 @@ namespace Innofactor.SuomiFiIdentificationClient.Test {
       Assert.IsTrue(result.StartsWith("https://testi.apro.tunnistus.fi/idp/profile/SAML2/Redirect/SLO?SAMLRequest"), "Start of request URL");
 
     }
-
+    [TestMethod]
+    public void XXEAttackTest() {
+      var ssssssss = "<?xml version=\"1.0\" ?> <!DOCTYPE doc" +
+        "[<!ENTITY xxe SYSTEM \"http://www.innofactor.com\" >]><doc>&xxe;</doc>";
+      var xmldokki = new XmlDocument();
+      xmldokki.LoadXml(ssssssss);
+    }
   }
 }

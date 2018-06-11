@@ -57,11 +57,9 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
         Options.GlobalEnableSha256XmlSignatures();
 
       var decoded = DecodeBase64(samlResponse);
-      var xmlDoc = new XmlDocument();
-      xmlDoc.PreserveWhitespace = true;
-      xmlDoc.LoadXml(decoded);
+      var doc = Saml2Response.Read(decoded);
 
-      var response = new Saml2Response(xmlDoc.DocumentElement, responseToId);
+      var response = new Saml2Response(doc.XmlElement, responseToId);
 
       if (response.Status != Saml2StatusCode.Success) {
         log.LogWarning("SAML authentication error: " + response.Status + " (" + response.StatusMessage + ")");
