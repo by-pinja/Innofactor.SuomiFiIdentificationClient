@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Xml;
@@ -51,8 +52,24 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
       idp.SigningKeys.AddConfiguredKey(idpCert);
       options.IdentityProviders.Add(idp);
 
-
-      var identities = response.GetClaims(options)?.ToArray();
+      System.Security.Claims.ClaimsIdentity[] identities = null;
+      try
+      {
+        identities = response.GetClaims(options)?.ToArray();
+      }
+      catch (Sustainsys.Saml2.Exceptions.Saml2ResponseFailedValidationException ex)
+      {
+        if (ex.Message.Contains("could not be decrypted"))
+        {
+          DecryptAesGcmHybrid(xmlDoc, serviceCertificate);
+          return ParseResponseFromXml(xmlDoc);
+        }
+        else
+        {
+          throw;
+        }
+      }
+      
 
       if (identities == null || identities.Length == 0)
         return new Saml2AuthResponse(false);
@@ -67,6 +84,80 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
 
       return new Saml2AuthResponse(true) { FirstName = firstName, LastName = lastName, SSN = ssn, RelayState = response.RelayState, NameIdentifier = nameId, SessionIndex = sessionId, ForeignPersonIdentifier = foreignPersonIdentifier };
 
+    }
+
+    private static Saml2AuthResponse ParseResponseFromXml(XmlDocument xmlDoc)
+    {
+      var response = new Saml2AuthResponse(true);
+
+      foreach(XmlElement c in xmlDoc.GetElementsByTagName("saml2:AttributeStatement")[0].ChildNodes)
+      {
+        switch (c.GetAttribute("Name"))
+        {
+          case AttributeNames.GivenName:
+            response.FirstName = c.FirstChild.InnerText;
+            break;
+          case AttributeNames.EidasCurrentGivenName:
+            response.FirstName = response.FirstName != null ? response.FirstName : c.FirstChild.InnerText;
+            break;
+          case AttributeNames.Sn:
+            response.LastName = c.FirstChild.InnerText;
+            break;
+          case AttributeNames.NationalIdentificationNumber:
+            response.SSN = c.FirstChild.InnerText;
+            break;
+          case AttributeNames.ForeignPersonIdentifier:
+            response.ForeignPersonIdentifier = c.FirstChild.InnerText;
+            break;
+          case AttributeNames.NameIdentifier:
+            response.NameIdentifier = c.FirstChild.InnerText;
+            break;
+          case AttributeNames.SessionIndex:
+            response.SessionIndex = c.FirstChild.InnerText;
+            break;
+          default:
+            break;
+        }
+      }
+
+      return response;
+    }
+
+    private static void DecryptAesGcmHybrid(XmlDocument xml, X509Certificate2 cert)
+    {
+      XmlElement encData = xml.GetElementsByTagName("xenc:EncryptedData")[0] as XmlElement;
+      XmlElement keyInfo = encData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "KeyInfo");
+      XmlElement encryptedKey = keyInfo.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "EncryptedKey");
+      XmlElement encKeyCipherData = encryptedKey.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherData");
+      XmlElement encKeyCipherValue = encKeyCipherData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherValue");
+      XmlElement encDataCipherData = encData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherData");
+      XmlElement encDataCipherValue = encDataCipherData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherValue");
+
+      using (RSA rsa = cert.GetRSAPrivateKey())
+      {
+        var key = rsa.Decrypt(Convert.FromBase64String(encKeyCipherValue.InnerText), RSAEncryptionPadding.OaepSHA1);
+        var fullCipher = Convert.FromBase64String(encDataCipherValue.InnerText);
+
+        using (var aes = new AesGcm(key))
+        {
+          var nonce = new byte[12];
+          var tag = new byte[16];
+          var cipher = new byte[fullCipher.Length - nonce.Length - tag.Length];
+          Buffer.BlockCopy(fullCipher, 0, nonce, 0, nonce.Length);
+          Buffer.BlockCopy(fullCipher, fullCipher.Length - tag.Length, tag, 0, tag.Length);
+          Buffer.BlockCopy(fullCipher, nonce.Length, cipher, 0, cipher.Length);
+
+          var res = new byte[cipher.Length];
+          aes.Decrypt(nonce, cipher, tag, res);
+
+          XmlDocument decryptedAssertionNode = new XmlDocument();
+          decryptedAssertionNode.LoadXml(Encoding.UTF8.GetString(res));
+          XmlNode encryptedAssertionNode = xml.GetElementsByTagName("saml2:EncryptedAssertion")[0] as XmlNode;
+
+          xml.LastChild.RemoveChild(encryptedAssertionNode);
+          xml.LastChild.AppendChild(xml.ImportNode(decryptedAssertionNode.DocumentElement, true));
+        }
+      }
     }
 
     public Saml2AuthResponse() { }
