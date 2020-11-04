@@ -59,7 +59,7 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
       }
       catch (Sustainsys.Saml2.Exceptions.Saml2ResponseFailedValidationException ex)
       {
-        if (ex.Message.Contains("could not be decrypted"))
+        if (ex.Message.Contains("could not be decrypted") && decoded.Contains("http://www.w3.org/2009/xmlenc11#aes128-gcm"))
         {
           DecryptAesGcmHybrid(xmlDoc, serviceCertificate);
           return ParseResponseFromXml(xmlDoc);
