@@ -120,6 +120,9 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
         }
       }
 
+      response.NameIdentifier = (xmlDoc.GetElementsByTagName("saml2:NameID")[0]).FirstChild.InnerText;
+      response.SessionIndex = (xmlDoc.GetElementsByTagName("saml2:AuthnStatement")[0]).Attributes.GetNamedItem("SessionIndex").InnerText;
+      
       return response;
     }
 

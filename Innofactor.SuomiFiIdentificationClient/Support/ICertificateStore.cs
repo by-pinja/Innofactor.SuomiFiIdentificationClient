@@ -30,7 +30,7 @@ namespace Innofactor.SuomiFiIdentificationClient.Support {
       var cert = store.Certificates.Cast<X509Certificate2>().FirstOrDefault(c => c.FriendlyName == certName);
 
       if (cert != null) {
-        log.LogDebug("Loaded certificate from store with name {0}", certName);
+        //log.LogDebug("Loaded certificate from store with name {0}", certName);
       }
 
       return cert;
