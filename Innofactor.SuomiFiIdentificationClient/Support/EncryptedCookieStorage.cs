@@ -42,7 +42,7 @@ namespace Innofactor.SuomiFiIdentificationClient.Support {
     public void Set(string name, string reason, string value) {
       var dataProtector = dataProtectionProvider.CreateProtector(reason);
       var encrypted = dataProtector.Protect(value);
-      response.Cookies.Append(name, encrypted);
+      response.Cookies.Append(name, encrypted, new CookieOptions() { SameSite = SameSiteMode.None, Secure = true });
     }
 
   }
