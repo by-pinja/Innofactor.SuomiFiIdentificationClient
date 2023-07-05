@@ -1,18 +1,24 @@
 ﻿# [Suomi.fi e-identification](https://esuomi.fi/suomi-fi-services/suomi-fi-e-identification/?lang=en) client for .NET
 
-This fork adds support for AES-GCM with RSA-OAEP encrypted assertions. This is a workaround which should really be fixed in the Sustainsys.Saml2.AspNetCore2.
----
+![Publish NuGet](https://github.com/Innofactor/Innofactor.SuomiFiIdentificationClient/workflows/Publish%20NuGet/badge.svg)
 
 Depends on Sustainsys.Saml2.AspNetCore2.
 
 **Note:**
 The client was created for a specific use case and is provided "as is". Pull requests and suggestions for generalizing the usage are welcome.
 
+* Targets .NET Standard 2.1, see other release branches for 2.0 support
 * Only HTTP Redirect binding is supported. 
+* Supports new AES-GCM encryption algorithm
+* Supports 2 Idp certificates
+* Supports 2 Service certificates
 
 ## Usage example 
 
 First make sure SamlConfig is configured, for example in appsettings.json (replace ENTITYID and CERTIFICATE_NAME as necessary):
+
+You can also add a secondary Idp certificate when You know that the Idp is about to change their signing certificate. 
+The configuration also supports 2 service certificates.
 
 ```json
   "Saml": {
@@ -21,15 +27,17 @@ First make sure SamlConfig is configured, for example in appsettings.json (repla
     "Saml2SLOUrl": "https://testi.apro.tunnistus.fi/idp/profile/SAML2/Redirect/SLO",
     "Saml2IdpEntityId": "https://testi.apro.tunnistus.fi/idp1",
     "Saml2IdpCertificate": "apro-test.cer",
+    "Saml2SecondaryIdpCertificate": "",
     "Saml2Certificate": "CERTIFICATE_NAME",
+    "Saml2SecondaryCertificate": "",
     "Saml2CertificateStoreLocation": "CurrentUser"
   },
 ```
 
 Add your certificate to certificate manager, for example Current user -> Personal -> Certificates. 
 Make sure the private key is exportable. When using the standard certificate store, 
-CERTIFICATE_NAME above must match certificate display name. The certificate store loading can be customized by
-replacing RsaShaCrypto with your own implementation of the ICertificateStore interface.
+CERTIFICATE_NAME above must match certificate friendly name. The certificate store loading can be customized by
+replacing it with your own implementation of the ICertificateStore interface.
 
 In Startup.cs:
 
@@ -40,14 +48,9 @@ In Startup.cs:
       // ...
 
       services.Configure<SamlConfig>(Configuration.GetSection("Saml"));
-
-      services.AddScoped<AuthStateAccessor>();
-      services.AddScoped<IEncryptedCookieStorage, EncryptedCookieStorage>();
-      services.AddScoped<ICertificateStore, RsaShaCrypto>();
-      services.AddScoped<ISaml2ResponseValidator, Saml2ResponseValidator>();
-      services.AddScoped<SuomiFiIdentificationClient>();
-      services.AddScoped<IActionContextAccessor, ActionContextAccessor>();
-
+      services.AddOptions();
+      services.AddScoped<ICertificateStore>(x => new CertificateStore(x.GetService<IOptions<SamlConfig>>().Value));
+      services.AddSuomiFiIdentificationClient();
     }
 
 ```

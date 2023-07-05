@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Linq;
-using System.Security.Cryptography;
+using System.Security.Claims;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Xml;
@@ -28,9 +28,13 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
     public static Saml2AuthResponse Create(string samlResponse,
       Saml2Id responseToId,
       EntityId issuer,
-      X509Certificate2 idpCert,
-      X509Certificate2 serviceCertificate,
-      EntityId serviceId) {
+      X509Certificate2 primaryIdpCert,
+      X509Certificate2 primaryServiceCert,
+      EntityId serviceId,
+      X509Certificate2 secondaryIdpCert,
+      X509Certificate2 secondaryServiceCert
+      )
+    {
 
       var decoded = DecodeBase64(samlResponse);
       var xmlDoc = new XmlDocument();
@@ -41,126 +45,69 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
 
       if (response.Status != Saml2StatusCode.Success) {
         log.LogWarning("SAML authentication error: " + response.Status + " (" + response.StatusMessage + ")");
-        return new Saml2AuthResponse(false) { Status = response.Status };
+        return new Saml2AuthResponse(false) {Status = response.Status};
       }
 
-      var spOptions = new SPOptions();
-      spOptions.EntityId = serviceId;
-      spOptions.ServiceCertificates.Add(serviceCertificate);
-      var options = new Options(spOptions);
-      var idp = new IdentityProvider(issuer, spOptions);
-      idp.SigningKeys.AddConfiguredKey(idpCert);
-      options.IdentityProviders.Add(idp);
+      var options = CreateOptions(issuer, serviceId, primaryIdpCert, primaryServiceCert, secondaryIdpCert, secondaryServiceCert);
+      return CreateResponse(options, response);
+    }
 
-      System.Security.Claims.ClaimsIdentity[] identities = null;
-      try
-      {
-        identities = response.GetClaims(options)?.ToArray();
-      }
-      catch (Sustainsys.Saml2.Exceptions.Saml2ResponseFailedValidationException ex)
-      {
-        if (ex.Message.Contains("could not be decrypted") && decoded.Contains("http://www.w3.org/2009/xmlenc11#aes128-gcm"))
-        {
-          DecryptAesGcmHybrid(xmlDoc, serviceCertificate);
-          return ParseResponseFromXml(xmlDoc);
-        }
-        else
-        {
-          throw;
-        }
-      }
-      
+    private static Saml2AuthResponse CreateResponse(Options options, Saml2Response response) {
+      var identities = response.GetClaims(options)?.ToArray();
 
       if (identities == null || identities.Length == 0)
         return new Saml2AuthResponse(false);
 
       var identity = identities.First();
+
+      return CreateResponse(identity, response.RelayState);
+
+    }
+
+    private static Saml2AuthResponse CreateResponse(ClaimsIdentity identity, string relayState) {
       var firstName = identity.FindFirstValue(AttributeNames.GivenName) ?? identity.FindFirstValue(AttributeNames.EidasCurrentGivenName);
-      var lastName = identity.FindFirstValue(AttributeNames.Sn);
+      var lastName = identity.FindFirstValue(AttributeNames.Sn) ?? identity.FindFirstValue(AttributeNames.EidasCurrentFamilyName);
       var ssn = identity.FindFirstValue(AttributeNames.NationalIdentificationNumber);
       var foreignPersonIdentifier = identity.FindFirstValue(AttributeNames.ForeignPersonIdentifier);
       var nameId = identity.FindFirstValue(AttributeNames.NameIdentifier);
       var sessionId = identity.FindFirstValue(AttributeNames.SessionIndex);
+      var eidasPersonIdentifier = identity.FindFirstValue(AttributeNames.EidasPersonIdentifier);
+      var eidasDateOfBirth = identity.FindFirstValue(AttributeNames.EidasDateOfBirth);
 
-      return new Saml2AuthResponse(true) { FirstName = firstName, LastName = lastName, SSN = ssn, RelayState = response.RelayState, NameIdentifier = nameId, SessionIndex = sessionId, ForeignPersonIdentifier = foreignPersonIdentifier };
-
+      return new Saml2AuthResponse(true)
+      {
+        FirstName = firstName,
+        LastName = lastName,
+        SSN = ssn,
+        RelayState = relayState,
+        NameIdentifier = nameId,
+        SessionIndex = sessionId,
+        ForeignPersonIdentifier = foreignPersonIdentifier,
+        EidasPersonIdentifier = eidasPersonIdentifier,
+        EidasDateOfBirth = eidasDateOfBirth
+      };
     }
 
-    private static Saml2AuthResponse ParseResponseFromXml(XmlDocument xmlDoc)
-    {
-      var response = new Saml2AuthResponse(true);
+    private static Options CreateOptions(EntityId issuer, EntityId serviceId, X509Certificate2 primaryIdpCert,
+      X509Certificate2 primaryServiceCert, X509Certificate2 secondaryIdpCert,
+      X509Certificate2 secondaryServiceCert) {
 
-      foreach(XmlElement c in xmlDoc.GetElementsByTagName("saml2:AttributeStatement")[0].ChildNodes)
-      {
-        switch (c.GetAttribute("Name"))
-        {
-          case AttributeNames.GivenName:
-            response.FirstName = c.FirstChild.InnerText;
-            break;
-          case AttributeNames.EidasCurrentGivenName:
-            response.FirstName = response.FirstName != null ? response.FirstName : c.FirstChild.InnerText;
-            break;
-          case AttributeNames.Sn:
-            response.LastName = c.FirstChild.InnerText;
-            break;
-          case AttributeNames.NationalIdentificationNumber:
-            response.SSN = c.FirstChild.InnerText;
-            break;
-          case AttributeNames.ForeignPersonIdentifier:
-            response.ForeignPersonIdentifier = c.FirstChild.InnerText;
-            break;
-          case AttributeNames.NameIdentifier:
-            response.NameIdentifier = c.FirstChild.InnerText;
-            break;
-          case AttributeNames.SessionIndex:
-            response.SessionIndex = c.FirstChild.InnerText;
-            break;
-          default:
-            break;
-        }
+      var spOptions = new SPOptions();
+      spOptions.EntityId = serviceId;
+      spOptions.ServiceCertificates.Add(primaryServiceCert);
+      if (secondaryServiceCert != null) {
+        spOptions.ServiceCertificates.Add(secondaryServiceCert);
       }
 
-      response.NameIdentifier = (xmlDoc.GetElementsByTagName("saml2:NameID")[0]).FirstChild.InnerText;
-      response.SessionIndex = (xmlDoc.GetElementsByTagName("saml2:AuthnStatement")[0]).Attributes.GetNamedItem("SessionIndex").InnerText;
-      
-      return response;
-    }
-
-    private static void DecryptAesGcmHybrid(XmlDocument xml, X509Certificate2 cert)
-    {
-      XmlElement encData = xml.GetElementsByTagName("xenc:EncryptedData")[0] as XmlElement;
-      XmlElement keyInfo = encData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "KeyInfo");
-      XmlElement encryptedKey = keyInfo.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "EncryptedKey");
-      XmlElement encKeyCipherData = encryptedKey.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherData");
-      XmlElement encKeyCipherValue = encKeyCipherData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherValue");
-      XmlElement encDataCipherData = encData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherData");
-      XmlElement encDataCipherValue = encDataCipherData.ChildNodes.Cast<XmlElement>().First(x => x.LocalName == "CipherValue");
-
-      using (RSA rsa = cert.GetRSAPrivateKey())
-      {
-        var key = rsa.Decrypt(Convert.FromBase64String(encKeyCipherValue.InnerText), RSAEncryptionPadding.OaepSHA1);
-        var fullCipher = Convert.FromBase64String(encDataCipherValue.InnerText);
-
-        using (var aes = new AesGcm(key))
-        {
-          var nonce = new byte[12];
-          var tag = new byte[16];
-          var cipher = new byte[fullCipher.Length - nonce.Length - tag.Length];
-          Buffer.BlockCopy(fullCipher, 0, nonce, 0, nonce.Length);
-          Buffer.BlockCopy(fullCipher, fullCipher.Length - tag.Length, tag, 0, tag.Length);
-          Buffer.BlockCopy(fullCipher, nonce.Length, cipher, 0, cipher.Length);
-
-          var res = new byte[cipher.Length];
-          aes.Decrypt(nonce, cipher, tag, res);
-
-          XmlDocument decryptedAssertionNode = new XmlDocument();
-          decryptedAssertionNode.LoadXml(Encoding.UTF8.GetString(res));
-          XmlNode encryptedAssertionNode = xml.GetElementsByTagName("saml2:EncryptedAssertion")[0] as XmlNode;
-
-          xml.LastChild.RemoveChild(encryptedAssertionNode);
-          xml.LastChild.AppendChild(xml.ImportNode(decryptedAssertionNode.DocumentElement, true));
-        }
+      var options = new Options(spOptions);
+      var idp = new IdentityProvider(issuer, spOptions);
+      idp.SigningKeys.AddConfiguredKey(primaryIdpCert);
+      if (secondaryIdpCert != null) {
+        idp.SigningKeys.AddConfiguredKey(secondaryIdpCert);
       }
+
+      options.IdentityProviders.Add(idp);
+      return options;
     }
 
     public Saml2AuthResponse() { }
@@ -181,6 +128,15 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
     /// Name / Session identifier used for Suomi.Fi logout request
     /// </summary>
     public string NameIdentifier { get; set; }
+
+    /// <summary>
+    /// Eidas dateOfBirth value in
+    /// YYYY-MM-DD -format
+    /// </summary>
+    public string EidasDateOfBirth { get; set; }
+
+    public string EidasPersonIdentifier { get; set; }
+
     /// <summary>
     /// Session identifier for Suomi.Fi logout request
     /// </summary>
@@ -188,7 +144,5 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
     public Saml2StatusCode Status { get; set; }
 
     public bool Success { get; set; }
-
   }
-
 }
