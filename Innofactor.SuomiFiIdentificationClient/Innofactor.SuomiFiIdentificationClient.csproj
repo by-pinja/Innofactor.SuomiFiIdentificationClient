@@ -1,17 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp7.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
 	<Authors>Innofactor</Authors>
     <Company>Innofactor</Company>
     <Description>Suomi.fi authentication client for dealing with all that SAML2 and decryption</Description>
     <PackageLicenseUrl>https://github.com/Innofactor/Innofactor.SuomiFiIdentificationClient/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/kallehakkanen/Innofactor.SuomiFiIdentificationClient</PackageProjectUrl>
+    <PackageId>SuomiFiIdentificationClient.Fork</PackageId>
     <PackageIconUrl>http://rappen.net/Cinteros/innofactor.png</PackageIconUrl>
     <RepositoryUrl>>https://github.com/Innofactor/Innofactor.SuomiFiIdentificationClient</RepositoryUrl>
     <SignAssembly>true</SignAssembly>
     <DelaySign>false</DelaySign>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Version>3.0.5</Version>
   </PropertyGroup>
 
   <ItemGroup>

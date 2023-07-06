@@ -22,7 +22,7 @@ namespace Innofactor.SuomiFiIdentificationClient.Decryption {
     public int OutputBlockSize => throw new NotImplementedException();
 
     public void Dispose() {
-      throw new NotImplementedException();
+      
     }
 
     public int TransformBlock(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset) {

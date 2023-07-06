@@ -40,16 +40,12 @@ namespace Innofactor.SuomiFiIdentificationClient.Saml {
     }
 
     private string Serialize(string payload) {
-
-      string result;
-
-      using (var compressed = new MemoryStream()) {
-        using (var writer = new StreamWriter(new DeflateStream(compressed, CompressionLevel.Optimal, true))) {
-          writer.Write(payload);
-        }
-
-        result = System.Net.WebUtility.UrlEncode(Convert.ToBase64String(compressed.GetBuffer()));
+      using var compressed = new MemoryStream();
+      using (var writer = new StreamWriter(new DeflateStream(compressed, CompressionLevel.Optimal, true))) {
+        writer.Write(payload);
       }
+
+      var result = System.Net.WebUtility.UrlEncode(Convert.ToBase64String(compressed.ToArray()));
 
       return result;
 
