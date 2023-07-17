@@ -5,12 +5,12 @@
 	<Authors>Innofactor</Authors>
     <Company>Innofactor</Company>
     <Description>Suomi.fi authentication client for dealing with all that SAML2 and decryption</Description>
-    <PackageLicenseUrl>https://github.com/Innofactor/Innofactor.SuomiFiIdentificationClient/blob/master/LICENSE</PackageLicenseUrl>
-    <PackageProjectUrl>https://github.com/kallehakkanen/Innofactor.SuomiFiIdentificationClient</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/by-pinja/Innofactor.SuomiFiIdentificationClient/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/by-pinja/Innofactor.SuomiFiIdentificationClient</PackageProjectUrl>
     <PackageId>SuomiFiIdentificationClient.Fork</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageIconUrl>http://rappen.net/Cinteros/innofactor.png</PackageIconUrl>
-    <RepositoryUrl>>https://github.com/Innofactor/Innofactor.SuomiFiIdentificationClient</RepositoryUrl>
+    <RepositoryUrl>>https://github.com/by-pinja/Innofactor.SuomiFiIdentificationClient</RepositoryUrl>
     <SignAssembly>true</SignAssembly>
     <DelaySign>false</DelaySign>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
