@@ -4,6 +4,8 @@
 
 Depends on Sustainsys.Saml2.AspNetCore2.
 
+This is a Pinja fork of the official Innofactor fork. This fixes the Aes Gcm problem where the Dispose() function throws a NotImplementedException.
+
 **Note:**
 The client was created for a specific use case and is provided "as is". Pull requests and suggestions for generalizing the usage are welcome.
 
