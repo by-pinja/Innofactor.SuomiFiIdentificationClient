@@ -1,7 +1,5 @@
 ﻿# [Suomi.fi e-identification](https://esuomi.fi/suomi-fi-services/suomi-fi-e-identification/?lang=en) client for .NET
 
-![Publish NuGet](https://github.com/Innofactor/Innofactor.SuomiFiIdentificationClient/workflows/Publish%20NuGet/badge.svg)
-
 Depends on Sustainsys.Saml2.AspNetCore2.
 
 This is a Pinja fork of the official Innofactor version. This fixes the Aes Gcm problem where the Dispose() function throws a NotImplementedException. This fork should be disused when the fix is implemented in the official Innofactor client.
